@@ -78,7 +78,7 @@ jobs:
           fi
 
           echo "Next version: $next_version"
-          echo "::set-output name=version::$next_version"
+          echo "{version}={$next_version}" >> $GITHUB_OUTPUT
           # Package up the release
           cd ../latest
           zip -r ../content.zip *
@@ -87,8 +87,8 @@ jobs:
       - name: Write VNM File
         shell: python
         run: |
-          import yaml, json
-          metadata = yaml.safe_load(open('./lastest/metadata.yaml', 'r'))
+          import yaml, json, os
+          metadata = yaml.safe_load(open('./latest/metadata.yaml', 'r'))
           vnm_data = {
             "folder": metadata["folder"],
             "description": metadata.get("description"),
