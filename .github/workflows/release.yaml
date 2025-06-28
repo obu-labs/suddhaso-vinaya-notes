@@ -17,7 +17,12 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           cd latest
-          latest_tag=$(gh release view --json tagName -q .tagName)
+          if latest_tag=$(gh release view --json tagName -q .tagName 2>/dev/null); then
+            echo "Got release"
+          else
+            echo "No release found"
+            tag=""
+          fi
           echo "Latest release was: ${latest_tag:-"(none)"}"
           
           # Handle first version (no previous tag)
