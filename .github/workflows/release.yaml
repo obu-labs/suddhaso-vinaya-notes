@@ -81,14 +81,14 @@ jobs:
           echo "::set-output name=version::$next_version"
           # Package up the release
           cd ../latest
-          zip -r ../content.zip . -x '*/.*'
+          zip -r ../content.zip *
           cd ..
           pip install pyyaml
       - name: Write VNM File
         shell: python
         run: |
           import yaml, json
-          metadata = yaml.safe_load(file('./lastest/metadata.yaml', 'r'))
+          metadata = yaml.safe_load(open('./lastest/metadata.yaml', 'r'))
           vnm_data = {
             "folder": metadata["folder"],
             "description": metadata.get("description"),
@@ -97,7 +97,7 @@ jobs:
             "requires": {}, # TODO
             "zip": "https://github.com/${{ github.repository }}/releases/download/v${{ steps.setup.outputs.version }}/content.zip"
           }
-          json.dump(vnm_data, file("./manifest.vnm", "w"), indent=2)
+          json.dump(vnm_data, open("./manifest.vnm", "w"), indent=2)
       - name: Create Release
         id: release
         uses: softprops/action-gh-release@v2
