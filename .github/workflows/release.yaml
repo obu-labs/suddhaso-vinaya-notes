@@ -1,0 +1,110 @@
+name: Release
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+jobs:
+  Build:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: latest
+      - id: setup
+        name: Setup the archive
+        run: |
+          gh auth login
+          latest_tag=$(gh release view --json tagName -q .tagName)
+          echo "Latest release was: ${latest_tag:-"(none)"}"
+          
+          # Handle first version (no previous tag)
+          if [ -z "$latest_tag" ]; then
+              next_version="1.0.0"
+          else
+              # Download the previous release
+              mkdir previousrelease
+              gh release download "$latest_tag" --dir ./previousrelease
+              cd previousrelease
+              [ $(ls -1 *.zip 2>/dev/null | wc -l) -eq 1 ] || { echo "Error: Directory must contain exactly one .zip file" >&2; exit 1; }
+              unzip *.zip -d previous
+
+              # Extract and validate version components
+              version_part="${latest_tag#v}"
+              IFS='.' read -r major minor patch <<< "$version_part"
+              
+              if ! [[ "$major" =~ ^[0-9]+$ ]] || ! [[ "$minor" =~ ^[0-9]+$ ]] || ! [[ "$patch" =~ ^[0-9]+$ ]]; then
+                  echo "Error: Invalid version format in latest_tag: $latest_tag" >&2
+                  exit 1
+              fi
+
+              # Create temporary files for directory listings
+              prev_list=$(mktemp)
+              latest_list=$(mktemp)
+              
+              # Generate file lists (non-hidden files only)
+              (cd previous && find . -type f ! -path '*/.*' ! -name '.*' | sort) > "$prev_list"
+              (cd latest && find . -type f ! -path '*/.*' ! -name '.*' | sort) > "$latest_list"
+
+              # Check for files removed from latest
+              if comm -23 "$prev_list" "$latest_list" | grep -q .; then
+                  echo "INFO: Found file(s) removed in the latest. Bumping the major version number."
+                  # Major bump: file(s) removed
+                  major=$((major + 1))
+                  minor=0
+                  patch=0
+              # Check for new files in latest
+              elif comm -13 "$prev_list" "$latest_list" | grep -q .; then
+                  echo "INFO: Found file(s) added to the latest. Bumping the minor version number."
+                  # Minor bump: new file(s) added
+                  minor=$((minor + 1))
+                  patch=0
+              else
+                  # Patch bump: only modifications
+                  patch=$((patch + 1))
+              fi
+
+              # Cleanup temp files
+              rm -f "$prev_list" "$latest_list"
+              
+              next_version="$major.$minor.$patch"
+          fi
+
+          echo "Next version: $next_version"
+          echo "::set-output name=version::$next_version"
+          # Package up the release
+          cd ../latest
+          zip -r ../content.zip . -x '*/.*'
+          cd ..
+          pip install pyyaml
+      - name: Write VNM File
+        shell: python
+        run: |
+          import yaml, json
+          metadata = yaml.safe_load(file('./lastest/metadata.yaml', 'r'))
+          vnm_data = {
+            "folder": metadata["folder"],
+            "description": metadata.get("description"),
+            "more_info": "https://github.com/${{ github.repository }}",
+            "version": "${{ steps.setup.outputs.version }}",
+            "requires": {}, # TODO
+            "zip": "https://github.com/${{ github.repository }}/releases/download/v${{ steps.setup.outputs.version }}/content.zip"
+          }
+          json.dump(vnm_data, file("./manifest.vnm", "w"), indent=2)
+      - name: Create Release
+        id: release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.setup.outputs.version }}
+          body: |
+            Release ${{ steps.setup.outputs.version }}
+          draft: false
+          prerelease: false
+          files: |
+            content.zip
+            manifest.vnm
+
+
+
