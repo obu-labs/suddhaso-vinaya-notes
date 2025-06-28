@@ -7,16 +7,15 @@ on:
 jobs:
   Build:
     runs-on: ubuntu-latest
-    env:
-      GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
         with:
           path: latest
       - id: setup
         name: Setup the archive
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          gh auth login
           latest_tag=$(gh release view --json tagName -q .tagName)
           echo "Latest release was: ${latest_tag:-"(none)"}"
           
