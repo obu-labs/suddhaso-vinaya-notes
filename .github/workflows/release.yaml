@@ -16,6 +16,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          cd latest
           latest_tag=$(gh release view --json tagName -q .tagName)
           echo "Latest release was: ${latest_tag:-"(none)"}"
           
@@ -24,9 +25,9 @@ jobs:
               next_version="1.0.0"
           else
               # Download the previous release
-              mkdir previousrelease
-              gh release download "$latest_tag" --dir ./previousrelease
-              cd previousrelease
+              mkdir ../previousrelease
+              gh release download "$latest_tag" --dir ../previousrelease
+              cd ../previousrelease
               [ $(ls -1 *.zip 2>/dev/null | wc -l) -eq 1 ] || { echo "Error: Directory must contain exactly one .zip file" >&2; exit 1; }
               unzip *.zip -d previous
 
